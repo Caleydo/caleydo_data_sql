@@ -1,0 +1,29 @@
+{
+  "name": "caleydo_data_sql",
+  "version": "0.0.1",
+  "license" : "SEE LICENSE IN LICENSE",
+  "repository": "Caleydo/caleydo_data_sql",
+  "dependencies": {
+  },
+  "peerDependencies": {
+    "caleydo_server": "*"
+  },
+  "caleydo": {
+    "plugins": {
+      "python": [
+        {
+          "type": "dataset-provider",
+          "id": "dataset-sql",
+          "file": "sql"
+        }
+      ]
+    },
+    "dependencies": {
+      "python": {
+      }
+    }
+  },
+  "publishConfig": {
+    "registry": "http://dev.caleydo.org/nexus/content/repositories/caleydo-web/"
+  }
+}
