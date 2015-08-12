@@ -11,7 +11,7 @@
   "caleydo": {
     "plugins": {
       "python": [
-        {{
+        {
           "type": "dataset-provider",
           "id": "dataset-sql",
           "file": "sql"
