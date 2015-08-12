@@ -11,10 +11,16 @@
   "caleydo": {
     "plugins": {
       "python": [
-        {
+        {{
           "type": "dataset-provider",
           "id": "dataset-sql",
           "file": "sql"
+        },
+        {
+          "type": "sql-adapater",
+          "id": "sqlite",
+          "file": "sqlite",
+          "filter": "(sqlite3|sqlite)"
         }
       ]
     },

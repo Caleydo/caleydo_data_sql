@@ -1,7 +1,6 @@
 __author__ = 'Samuel Gratzl'
 import numpy as np
 import caleydo_server.range as ranges
-
 import itertools
 
 
@@ -12,8 +11,25 @@ def assign_ids(ids, idtype):
   return np.array(manager(ids, idtype))
 
 class SQLDatabase(object):
-  def __init__(self, dbconfig):
+  def __init__(self, dbconfig, name):
     self.dbconfig = dbconfig
+    self.name = name
+
+    self.entries = [e for e in map(self.create_entry, dbconfig['tables']) if e is not None]
+
+  def create_entry(self, entry):
+    if entry['type'] == 'table':
+        return SQLTable(self, entry)
+    return None
+
+  def execute(self, sql, *args):
+    raise NotImplementedError()
+
+  def __len__(self):
+    return len(self.entries)
+
+  def __iter__(self):
+    return iter(self.entries)
 
 
 class SQLEntry(object):
@@ -124,7 +140,6 @@ class SQLTable(SQLEntry):
     #TODO
     return []
 
-
   def rows(self, range=None):
     n = [r[0] for r in self._db.execute('select {0} from {1} order by {0}'.format(self._idColumn,self._table))]
     if range is None:
@@ -170,38 +185,21 @@ class SQLTable(SQLEntry):
     return r
 
 
-
-class SQLiteDatabase(SQLDatabase):
-  def __init__(self, dbconfig):
-    super(SQLiteDatabase, self).__init__(dbconfig)
-    import sqlite3
-    import os
-    self.db = sqlite3.connect(dbconfig['url'])
-    self.name=dbconfig.get('name', os.path.basename(dbconfig['url']))
-
-    def create_entry(entry):
-      if entry['type'] == 'table':
-        return SQLTable(self, entry)
-    self.entries = [e for e in map(create_entry, dbconfig['tables']) if e is not None]
-
-  def execute(self, sql, *args):
-    return self.db.execute(sql, *args)
-
-  def __len__(self):
-    return len(self.entries)
-
-  def __iter__(self):
-    return iter(self.entries)
-
-
 class SQLDatabasesProvider(object):
   def __init__(self):
     import caleydo_server.config
     c = caleydo_server.config.view('caleydo_data_sql')
+    import caleydo_server.plugin
+    import re
+
+    adapter = caleydo_server.plugin.list('sql-adapter')
+
     def create_db(db):
-      if db['type'] == 'sqlite3':
-        return SQLiteDatabase(db)
-      print 'cant handle database type: '+db['type']+''
+      t = db['type']
+      for a in adapter:
+        if re.match(a.filter, t):
+          return a.load().factory(db)
+      print 'cant handle database type: '+t+''
       return None
     self.databases = [d for d in (create_db(db) for db in c.databases) if d is not None]
 
