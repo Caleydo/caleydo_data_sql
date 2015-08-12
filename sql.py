@@ -90,14 +90,14 @@ class SQLTable(SQLEntry):
   def __init__(self, db, desc):
     super(SQLTable, self).__init__(db, desc)
 
-    self.columns = [SQLColumn(a, i, db) for i,a in enumerate(desc.columns)]
+    self.columns = [SQLColumn(a, i, self) for i,a in enumerate(desc['columns'])]
     self._idColumn = desc['idColumn']
     self._table = desc['table']
     self._rowids = None
 
   @property
   def idtype(self):
-    return self.desc.idtype
+    return self.desc["idType"]
 
   def idtypes(self):
     return [self.idtype]
@@ -111,7 +111,7 @@ class SQLTable(SQLEntry):
 
   @property
   def nrows(self):
-    r = next(self.execute('select count(*) as c from '+self._table));
+    r = next(self._db.execute('select count(*) as c from '+self._table))
     return r[0]
 
   def range_of(self, column):
@@ -133,7 +133,7 @@ class SQLTable(SQLEntry):
 
   def rowids(self, range=None):
     if self._rowids is None:
-      self._rowids = assign_ids(self.rows(), self.rowtype)
+      self._rowids = assign_ids(self.rows(), self.idtype)
     n = self._rowids
     if range is None:
       return n
@@ -175,15 +175,17 @@ class SQLiteDatabase(SQLDatabase):
   def __init__(self, dbconfig):
     super(SQLiteDatabase, self).__init__(dbconfig)
     import sqlite3
-    self.db = sqlite3.connect(dbconfig.url)
+    import os
+    self.db = sqlite3.connect(dbconfig['url'])
+    self.name=dbconfig.get('name', os.path.basename(dbconfig['url']))
 
     def create_entry(entry):
-      if entry.type == 'table':
+      if entry['type'] == 'table':
         return SQLTable(self, entry)
-    self.entries = [e for e in map(create_entry, dbconfig.tables) if e is not None]
+    self.entries = [e for e in map(create_entry, dbconfig['tables']) if e is not None]
 
-  def execute(self, sql, parameters = None):
-    return self.db.execute(sql, parameters)
+  def execute(self, sql, *args):
+    return self.db.execute(sql, *args)
 
   def __len__(self):
     return len(self.entries)
@@ -197,9 +199,9 @@ class SQLDatabasesProvider(object):
     import caleydo_server.config
     c = caleydo_server.config.view('caleydo_data_sql')
     def create_db(db):
-      if db.type == 'sqlite':
+      if db['type'] == 'sqlite3':
         return SQLiteDatabase(db)
-      print 'cant handle database type: '+db.type+''
+      print 'cant handle database type: '+db['type']+''
       return None
     self.databases = [d for d in (create_db(db) for db in c.databases) if d is not None]
 
