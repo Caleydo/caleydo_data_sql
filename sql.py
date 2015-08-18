@@ -2,7 +2,7 @@ __author__ = 'Samuel Gratzl'
 import numpy as np
 import caleydo_server.range as ranges
 import itertools
-
+from caleydo_server.dataset_def import ADataSetEntry, ADataSetProvider
 
 def assign_ids(ids, idtype):
   import caleydo_server.plugin
@@ -31,27 +31,17 @@ class SQLDatabase(object):
   def __iter__(self):
     return iter(self.entries)
 
+  def __getitem__(self, dataset_id):
+    for f in self.entries:
+      if f.id == dataset_id:
+        return f
+    return None
 
-class SQLEntry(object):
+class SQLEntry(ADataSetEntry):
   def __init__(self, db, desc):
+    super(SQLEntry, self).__init__(desc['name'], db.name, desc['type'])
     self._db = db
     self.desc = desc
-    self.name = desc['name']
-    self.type = desc['type']
-
-  def idtypes(self):
-    return []
-
-  def to_description(self):
-    return dict(type=self.type,
-                name=self.name,
-                fqname=self._db.name+'/'+self.name)
-
-  def to_idtype_descriptions(self):
-    def to_desc(t):
-      return dict(id=t, name=t, names=t + 's')
-
-    return map(to_desc, self.idtypes())
 
 class SQLTable(SQLEntry):
   def __init__(self, db, desc):
@@ -185,7 +175,7 @@ class SQLTable(SQLEntry):
     return r
 
 
-class SQLDatabasesProvider(object):
+class SQLDatabasesProvider(ADataSetProvider):
   def __init__(self):
     import caleydo_server.config
     c = caleydo_server.config.view('caleydo_data_sql')
@@ -208,6 +198,14 @@ class SQLDatabasesProvider(object):
 
   def __iter__(self):
     return itertools.chain(*self.databases)
+
+  def __getitem__(self, dataset_id):
+    for db in self.databases:
+      r = db[dataset_id]
+      if r is not None:
+        return r
+    return None
+
 
 def create():
   return SQLDatabasesProvider()
