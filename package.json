@@ -17,7 +17,7 @@
           "file": "sql"
         },
         {
-          "type": "sql-adapater",
+          "type": "sql-adapter",
           "id": "sqlite",
           "file": "sqlite",
           "filter": "(sqlite3|sqlite)"
