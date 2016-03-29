@@ -43,10 +43,6 @@ class SQLEntry(ADataSetEntry):
     self._db = db
     self.desc = desc
 
-class SQLTable(SQLEntry):
-  def __init__(self, db, desc):
-    super(SQLTable, self).__init__(db, desc)
-
 class SQLColumn(object):
   def __init__(self, desc, i, table):
     self._table = table
