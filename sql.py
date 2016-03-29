@@ -14,6 +14,8 @@ class SQLDatabase(object):
   def __init__(self, dbconfig, name):
     self.dbconfig = dbconfig
     self.name = name
+    #access to DB in DBI format
+    self.db = None
 
     self.entries = [e for e in map(self.create_entry, dbconfig['tables']) if e is not None]
 
@@ -99,7 +101,7 @@ class SQLTable(SQLEntry):
 
   @property
   def idtype(self):
-    return self.desc["idType"]
+    return self.desc['idType']
 
   def idtypes(self):
     return [self.idtype]
@@ -140,19 +142,25 @@ class SQLTable(SQLEntry):
       return n
     return n[range.asslice()]
 
-  def asiterlist(self, range=None):
-    columns = ','.join(d.column for d in self.columns)
-    if range is None:
-      return self._db.execute('select {0} from {1} order by {2}'.format(columns,self._table, self._idColumn))
-    #TODO
-    return []
+  def aslist(self, range=None):
+    return list(self.asiter(range))
 
-  def asnumpy(self, range=None):
+  def asiter(self, range=None):
+    r = self._db.execute(self._to_query())
     if range is None:
-      return list(self.asiterlist(range))
-    #TODO
-    #return n[range[0].asslice()]
-    return []
+      return r
+    return list(r)[range.asslice()]
+
+  def _to_query(self):
+    columns = ','.join(d.column for d in self.columns)
+    return 'select {0} from {1} order by {2}'.format(columns,self._table, self._idColumn)
+
+  def aspandas(self, range=None):
+    import pandas as pd
+    df = pd.read_sql_query(self._to_query(), self._db.db)
+    if range is None:
+      return df
+    return df.iloc[range.asslice()]
 
   def filter(self, query):
     # perform the query on rows and cols and return a range with just the mathing one
@@ -161,11 +169,10 @@ class SQLTable(SQLEntry):
     return ranges.all()
 
   def asjson(self, range=None):
-    arr = self.asnumpy(range)
     rows = self.rows(None if range is None else range[0])
     rowids = self.rowids(None if range is None else range[0])
 
-    dd = [[c(row[c.key]) for c in self.columns] for row in self.asiterlist(range)]
+    dd = [[c(row[c.key]) for c in self.columns] for row in self.asiter(range)]
     r = dict(data=dd, rows=rows, rowIds = rowids)
 
     return r
