@@ -59,14 +59,18 @@ class SQLColumn(object):
       return lambda x : rlookup[str(x)]
 
     if self.type == 'categorical':
-      self.categories = desc.get('categories', None)
-      if isinstance(self.categories, dict):
-        self._converter = create_lookup(self.categories)
-        self.categories = self.categories.keys()
-      elif self.categories is None:
-        self.categories = self._table.categories_of(self.column)
+      self._categories = desc.get('categories', None)
+      if isinstance(self._categories, dict):
+        self._converter = create_lookup(self._categories)
+        self._categories = self._categories.keys()
     elif self.type == 'int' or self.type == 'real':
       self._range = desc['range'] if 'range' in desc else None
+
+  @property
+  def categories(self):
+    if self._categories is None and self.type == 'categorical':
+      self._categories = self._table.categories_of(self.column)
+    return self._categories
 
   @property
   def range(self):
@@ -96,10 +100,11 @@ class SQLTable(SQLEntry):
   def __init__(self, db, desc):
     super(SQLTable, self).__init__(db, desc)
 
-    self.columns = [SQLColumn(a, i, self) for i,a in enumerate(desc['columns'])]
     self._idColumn = desc['idColumn']
     self._table = desc['table']
     self._rowids = None
+    self.columns = [SQLColumn(a, i, self) for i,a in enumerate(desc['columns'])]
+
 
   @property
   def idtype(self):
