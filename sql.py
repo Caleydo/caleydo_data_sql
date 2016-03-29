@@ -59,10 +59,12 @@ class SQLColumn(object):
       return lambda x : rlookup[str(x)]
 
     if self.type == 'categorical':
-      self.categories = desc['categories']
+      self.categories = desc.get('categories', None)
       if isinstance(self.categories, dict):
         self._converter = create_lookup(self.categories)
         self.categories = self.categories.keys()
+      elif self.categories is None:
+        self.categories = self._table.categories_of(self.column)
     elif self.type == 'int' or self.type == 'real':
       self._range = desc['range'] if 'range' in desc else None
 
@@ -121,6 +123,9 @@ class SQLTable(SQLEntry):
   def range_of(self, column):
     r = next(self._db.execute('select min({0}), max({0}) from {1}'.format(column, self._table)))
     return [r[0], r[1]]
+
+  def categories_of(self, column):
+    return [ r[0] for r in self._db.execute('select distinct({0}) from {1}'.format(column, self._table)) ]
 
   def rows_of(self, column, range = None):
     if range is None:
