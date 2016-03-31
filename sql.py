@@ -2,6 +2,7 @@ __author__ = 'Samuel Gratzl'
 import numpy as np
 import caleydo_server.range as ranges
 import itertools
+import sqlalchemy
 from caleydo_server.dataset_def import ADataSetEntry, ADataSetProvider
 
 def assign_ids(ids, idtype):
@@ -11,21 +12,29 @@ def assign_ids(ids, idtype):
   return np.array(manager(ids, idtype))
 
 class SQLDatabase(object):
-  def __init__(self, dbconfig, name):
-    self.dbconfig = dbconfig
-    self.name = name
+  def __init__(self, config):
+    self.config = config
     #access to DB in DBI format
-    self.db = None
+    self.engine = sqlalchemy.create_engine(config['url'])
+    import os
+    self.name = config.get('name', os.path.basename(config['url']))
+    self._db = None
 
-    self.entries = [e for e in map(self.create_entry, dbconfig['tables']) if e is not None]
+    self.entries = [e for e in map(self.create_entry, config['tables']) if e is not None]
+
+  @property
+  def db(self):
+    if self._db is None:
+      self._db = self.engine.connect()
+    return self._db
 
   def create_entry(self, entry):
     if entry['type'] == 'table':
         return SQLTable(self, entry)
     return None
 
-  def execute(self, sql, *args):
-    raise NotImplementedError()
+  def execute(self, sql, *args, **kwargs):
+    return self.db.exeucte(sql, *args, **kwargs)
 
   def __len__(self):
     return len(self.entries)
@@ -167,7 +176,7 @@ class SQLTable(SQLEntry):
 
   def aspandas(self, range=None):
     import pandas as pd
-    df = pd.read_sql_query(self._to_query(), self._db.db)
+    df = pd.read_sql_query(self._to_query(), engine=self._db.engine)
     if range is None:
       return df
     return df.iloc[range.asslice()]
@@ -192,19 +201,7 @@ class SQLDatabasesProvider(ADataSetProvider):
   def __init__(self):
     import caleydo_server.config
     c = caleydo_server.config.view('caleydo_data_sql')
-    import caleydo_server.plugin
-    import re
-
-    adapter = caleydo_server.plugin.list('sql-adapter')
-
-    def create_db(db):
-      t = db['type']
-      for a in adapter:
-        if re.match(a.filter, t):
-          return a.load().factory(db)
-      print 'cant handle database type: '+t+''
-      return None
-    self.databases = [d for d in (create_db(db) for db in c.databases) if d is not None]
+    self.databases = [SQLDatabase(db) for db in c.databases]
 
   def __len__(self):
     return sum((len(f) for f in self.databases))
