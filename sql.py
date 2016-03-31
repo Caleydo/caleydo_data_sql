@@ -125,7 +125,7 @@ class SQLView(object):
     return self._table.columns
 
   def _to_query(self, args):
-    columns = ','.join(self._columnPrefix+d.column for d in self._table.columns)
+    columns = ','.join(self._columnPrefix+d.column+' as "'+d.name+'"' for d in self.columns)
     return self._build_query(columns, args)
 
   def _build_query(self, columns, args):
@@ -143,17 +143,14 @@ class SQLView(object):
     return assign_ids(self.rows(args), self._table.idtype)
 
   def aslist(self, args=None):
-    return [{ c.name : c(row[c.key]) for c in self._table.columns} for row in self.asiter(args) ]
-
-  def asiter(self, args=None):
-    q,kwargs = self._to_query(args)
-    r = self._db.execute(q, **kwargs)
-    return r
+    return self.aspandas(args).to_dict('records')
 
   def aspandas(self, args=None):
     import pandas as pd
     q, kwargs = self._to_query(args)
-    df = pd.read_sql_query(q, params=kwargs, engine=self._db.engine)
+    result = self._db.db.execute(q,**kwargs)
+    columns = result.keys()
+    df = pd.DataFrame.from_records(list(result), columns=columns)
     return df
 
   def asjson(self, args=None):
@@ -223,21 +220,18 @@ class SQLTable(SQLEntry):
     return n[range.asslice()]
 
   def aslist(self, range=None):
-    return [{ c.name : c(row[c.key]) for c in self.columns } for row in self.asiter(range)]
-
-  def asiter(self, range=None):
-    r = self._db.execute(self._to_query())
-    if range is None:
-      return r
-    return list(r)[range.asslice()]
+    return self.aspandas(range).to_dict('records')
 
   def _to_query(self):
-    columns = ','.join(d.column for d in self.columns)
+    columns = ','.join(d.column+' as "'+d.name+'"' for d in self.columns)
     return 'select {0} from {1} order by {2}'.format(columns,self._table, self._idColumn)
 
   def aspandas(self, range=None):
     import pandas as pd
-    df = pd.read_sql_query(self._to_query(), engine=self._db.engine)
+    result = self._db.db.execute(self._to_query())
+    columns = result.keys()
+    df = pd.DataFrame.from_records(list(result), columns=columns)
+
     if range is None:
       return df
     return df.iloc[range.asslice()]
