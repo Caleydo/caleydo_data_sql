@@ -93,8 +93,11 @@ class SQLColumn(object):
   def __call__(self, v):
     return self._converter(v)
 
-  def asnumpy(self, range=None):
+  def aslist(self, range = None):
     return [self(v) for v in self._table.rows_of(self.column, range)]
+
+  def asnumpy(self, range=None):
+    return np.array(self.aslist(range))
 
   def dump(self):
     value = dict(type=self.type)
@@ -140,7 +143,7 @@ class SQLView(object):
     return assign_ids(self.rows(args), self._table.idtype)
 
   def aslist(self, args=None):
-    return list(self.asiter(args))
+    return [{ c.name : c(row[c.key]) for c in self._table.columns} for row in self.asiter(args) ]
 
   def asiter(self, args=None):
     q,kwargs = self._to_query(args)
@@ -157,7 +160,7 @@ class SQLView(object):
     rows = self.rows(args)
     rowids = assign_ids(rows, self._table.idtype)
 
-    dd = [[c(row[c.key]) for c in self._table.columns] for row in self.asiter(args)]
+    dd = self.aslist(args)
     r = dict(data=dd, rows=rows, rowIds = rowids)
 
     return r
@@ -220,7 +223,7 @@ class SQLTable(SQLEntry):
     return n[range.asslice()]
 
   def aslist(self, range=None):
-    return list(self.asiter(range))
+    return [{ c.name : c(row[c.key]) for c in self.columns } for row in self.asiter(range)]
 
   def asiter(self, range=None):
     r = self._db.execute(self._to_query())
@@ -243,7 +246,7 @@ class SQLTable(SQLEntry):
     rows = self.rows(None if range is None else range[0])
     rowids = self.rowids(None if range is None else range[0])
 
-    dd = [[c(row[c.key]) for c in self.columns] for row in self.asiter(range)]
+    dd = self.aslist(range)
     r = dict(data=dd, rows=rows, rowIds = rowids)
 
     return r
