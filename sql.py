@@ -34,7 +34,7 @@ class SQLDatabase(object):
     return None
 
   def execute(self, sql, *args, **kwargs):
-    return self.db.exeucte(sql, *args, **kwargs)
+    return self.db.execute(sql, *args, **kwargs)
 
   def __len__(self):
     return len(self.entries)
@@ -131,11 +131,11 @@ class SQLTable(SQLEntry):
 
   @property
   def nrows(self):
-    r = next(self._db.execute('select count(*) as c from '+self._table))
+    r = next(iter(self._db.execute('select count(*) as c from '+self._table)))
     return r[0]
 
   def range_of(self, column):
-    r = next(self._db.execute('select min({0}), max({0}) from {1}'.format(column, self._table)))
+    r = next(iter(self._db.execute('select min({0}), max({0}) from {1}'.format(column, self._table))))
     return [r[0], r[1]]
 
   def categories_of(self, column):
@@ -201,7 +201,12 @@ class SQLDatabasesProvider(ADataSetProvider):
   def __init__(self):
     import caleydo_server.config
     c = caleydo_server.config.view('caleydo_data_sql')
-    self.databases = [SQLDatabase(db) for db in c.databases]
+    import caleydo_server.plugin
+    definitions = list(c.databases)
+    for definition in caleydo_server.plugin.list('sql-database-definition'):
+      definitions.extend(caleydo_server.config.view(definition.configKey).databases)
+
+    self.databases = [SQLDatabase(db) for db in definitions]
 
   def __len__(self):
     return sum((len(f) for f in self.databases))
