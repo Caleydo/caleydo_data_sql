@@ -104,6 +104,63 @@ class SQLColumn(object):
       value['range'] = self.range
     return dict(name=self.name, value=value)
 
+class SQLView(object):
+  def __init__(self, desc, table):
+    self._table = table
+    self._db = self._table._db
+    self._idColumn = desc['idColumn']
+    self._columnPrefix = desc['columnPrefix']
+    self._from = desc['from']
+    self._where = desc['where']
+    self._arguments = desc['arguments']
+
+  def dump(self):
+    return self._arguments
+
+  @property
+  def columns(self):
+    return self._table.columns
+
+  def _to_query(self, args):
+    columns = ','.join(self._columnPrefix+d.column for d in self._table.columns)
+    return self._build_query(columns, args)
+
+  def _build_query(self, columns, args):
+    q = 'select {0} from {1} where {2} order by {3}'.format(columns, self._from, self._where, self._idColumn)
+    kwargs = { a : args[a] for a in self._arguments}
+    return sqlalchemy.sql.text(q), kwargs
+
+
+  def rows(self, args = None):
+    q,kwargs = self._build_query(self._idColumn, args)
+    n = [r[0] for r in self._db.execute(q, **kwargs)]
+    return n
+
+  def rowids(self, args = None):
+    return assign_ids(self.rows(args), self._table.idtype)
+
+  def aslist(self, args=None):
+    return list(self.asiter(args))
+
+  def asiter(self, args=None):
+    q,kwargs = self._to_query(args)
+    r = self._db.execute(q, **kwargs)
+    return r
+
+  def aspandas(self, args=None):
+    import pandas as pd
+    q, kwargs = self._to_query(args)
+    df = pd.read_sql_query(q, params=kwargs, engine=self._db.engine)
+    return df
+
+  def asjson(self, args=None):
+    rows = self.rows(args)
+    rowids = assign_ids(rows, self._table.idtype)
+
+    dd = [[c(row[c.key]) for c in self._table.columns] for row in self.asiter(args)]
+    r = dict(data=dd, rows=rows, rowIds = rowids)
+
+    return r
 
 class SQLTable(SQLEntry):
   def __init__(self, db, desc):
@@ -113,7 +170,7 @@ class SQLTable(SQLEntry):
     self._table = desc['table']
     self._rowids = None
     self.columns = [SQLColumn(a, i, self) for i,a in enumerate(desc['columns'])]
-
+    self.views = { k: SQLView(v, self) for k,v in desc.get('views',{}).iteritems() }
 
   @property
   def idtype(self):
@@ -127,6 +184,7 @@ class SQLTable(SQLEntry):
     r['idtype'] = self.idtype
     r['columns'] = [d.dump() for d in self.columns]
     r['size'] = [self.nrows, len(self.columns)]
+    r['views'] = { k : v.dump() for k,v in self.views.iteritems() }
     return r
 
   @property
@@ -180,12 +238,6 @@ class SQLTable(SQLEntry):
     if range is None:
       return df
     return df.iloc[range.asslice()]
-
-  def filter(self, query):
-    # perform the query on rows and cols and return a range with just the mathing one
-    # np.argwhere
-    np.arange(10)
-    return ranges.all()
 
   def asjson(self, range=None):
     rows = self.rows(None if range is None else range[0])
