@@ -65,13 +65,20 @@ class SQLColumn(object):
 
     def create_lookup(cats):
       rlookup = { str(v) : k for k,v in cats.iteritems() }
-      return lambda x : rlookup[str(x)]
+      def lookup(x):
+        if x is None and 'unknown' in rlookup:
+          return rlookup['unknown']
+        if x is None and 'unknown' in cats:
+          return 'unknown'
+        return None if x is None else rlookup[str(x)]
+      return lookup
 
     if self.type == 'categorical':
       self._categories = desc.get('categories', None)
       if isinstance(self._categories, dict):
         self._converter = create_lookup(self._categories)
         self._categories = self._categories.keys()
+      self._category_colors = desc.get('category_colors', None)
     elif self.type == 'int' or self.type == 'real':
       self._range = desc['range'] if 'range' in desc else None
 
@@ -102,7 +109,7 @@ class SQLColumn(object):
   def dump(self):
     value = dict(type=self.type)
     if self.type == 'categorical':
-      value['categories'] = self.categories
+      value['categories'] = self._category_colors if self._category_colors is not None else self.categories
     if self.type == 'int' or self.type == 'real':
       value['range'] = self.range
     return dict(name=self.name, value=value)
@@ -197,11 +204,11 @@ class SQLTable(SQLEntry):
     return [r[0], r[1]]
 
   def categories_of(self, column):
-    return [ r[0] for r in self._db.execute('select distinct({0}) from {1}'.format(column, self._table)) ]
+    return [ r[0] for r in self._db.execute('select distinct({0}) from {1} where {0} is not null'.format(column, self._table)) ]
 
   def rows_of(self, column, range = None):
     if range is None:
-      return np.array(list(self._db.execute('select {0} from {1} order by {2}'.format(column, self._table, self._idColumn))))
+      return np.array([ r[0] for r in self._db.execute('select {0} from {1} order by {2}'.format(column, self._table, self._idColumn))])
     #TODO
     return []
 
