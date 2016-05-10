@@ -1,7 +1,7 @@
-Caleydo Data SQLite
+Caleydo Data SQL
 =====================
 
-Data provider plugin for loading tabular data stored in an [SQLLite database](https://www.sqlite.org/).
+Data provider plugin for loading tabular data stored in an [SQLite database](https://www.sqlite.org/).
 
 This plugin is part of the [Caleydo Web platform](http://caleydo.org/documentation).
 
