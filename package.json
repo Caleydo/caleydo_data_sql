@@ -1,5 +1,6 @@
 {
   "name": "caleydo_data_sql",
+  "description": "Data provider plugin for loading tabular data stored in an SQLite database.",
   "version": "0.0.1",
   "license" : "SEE LICENSE IN LICENSE",
   "repository": "Caleydo/caleydo_data_sql",
@@ -9,6 +10,8 @@
     "caleydo_server": "*"
   },
   "caleydo": {
+    "type": "plugin",
+    "category": "python_data",
     "plugins": {
       "python": [
         {
