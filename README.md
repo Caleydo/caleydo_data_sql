@@ -5,6 +5,7 @@ Data provider plugin for loading tabular data stored in an [SQLite database](htt
 
 Installation
 ------------
+
 ```bash
 ./manage.sh clone Caleydo/caleydo_data_sql
 ./manage.sh resolve
