@@ -29,7 +29,8 @@
     },
     "dependencies": {
       "python": {
-        "SQLAlchemy" :"==1.0.12"
+        "SQLAlchemy" :"==1.0.12",
+        "sqlalchemy-gevent": "==0.2"
       }
     }
   },

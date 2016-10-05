@@ -3,6 +3,10 @@ import numpy as np
 import caleydo_server.range as ranges
 import itertools
 import sqlalchemy
+#patch sqlalchemy for better parallelism using gevent
+import sqlalchemy_gevent
+sqlalchemy_gevent.patch_all()
+
 from caleydo_server.dataset_def import ADataSetEntry, ADataSetProvider
 
 def assign_ids(ids, idtype):
