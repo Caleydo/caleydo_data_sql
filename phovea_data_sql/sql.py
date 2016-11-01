@@ -1,18 +1,18 @@
 __author__ = 'Samuel Gratzl'
 import numpy as np
-import caleydo_server.range as ranges
+import phovea_server.range as ranges
 import itertools
 import sqlalchemy
 #patch sqlalchemy for better parallelism using gevent
 #import sqlalchemy_gevent
 #sqlalchemy_gevent.patch_all()
 
-from caleydo_server.dataset_def import ADataSetEntry, ADataSetProvider
+from phovea_server.dataset_def import ADataSetEntry, ADataSetProvider
 
 def assign_ids(ids, idtype):
-  import caleydo_server.plugin
+  import phovea_server.plugin
 
-  manager = caleydo_server.plugin.lookup('idmanager')
+  manager = phovea_server.plugin.lookup('idmanager')
   return np.array(manager(ids, idtype))
 
 class SQLDatabase(object):
@@ -259,12 +259,12 @@ class SQLTable(SQLEntry):
 
 class SQLDatabasesProvider(ADataSetProvider):
   def __init__(self):
-    import caleydo_server.config
-    c = caleydo_server.config.view('caleydo_data_sql')
-    import caleydo_server.plugin
+    import phovea_server.config
+    c = phovea_server.config.view('phovea_data_sql')
+    import phovea_server.plugin
     definitions = list(c.databases)
-    for definition in caleydo_server.plugin.list('sql-database-definition'):
-      definitions.extend(caleydo_server.config.view(definition.configKey).databases)
+    for definition in phovea_server.plugin.list('sql-database-definition'):
+      definitions.extend(phovea_server.config.view(definition.configKey).databases)
 
     self.databases = [SQLDatabase(db) for db in definitions]
 
