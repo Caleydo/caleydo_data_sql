@@ -1,0 +1,21 @@
+{
+  "generator-phovea": {
+    "type": "service",
+    "name": "phovea_data_sql",
+    "author": "The Caleydo Team",
+    "githubAccount": "phovea",
+    "slibraries": [],
+    "smodules": [
+      "phovea_server"
+    ],
+    "sextensions": [
+      {
+        "type": "dataset-provider",
+        "id": "dataset-sql",
+        "module": "sql",
+        "extras": {}
+      }
+    ],
+    "today": "Tue, 01 Nov 2016 20:02:16 GMT"
+  }
+}

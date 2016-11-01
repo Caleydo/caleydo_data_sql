@@ -1,11 +1,13 @@
 {
-  "name": "caleydo_data_sql",
+  "name": "phovea_data_sql",
   "description": "Data provider plugin for loading tabular data stored in an SQLite database.",
   "version": "0.0.1",
-  "license" : "SEE LICENSE IN LICENSE",
-  "repository": "Caleydo/caleydo_data_sql",
-  "dependencies": {
+  "license": "BSD-3-Clause",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/phovea/phovea_data_sql.git"
   },
+  "dependencies": {},
   "peerDependencies": {
     "caleydo_server": "*"
   },
@@ -23,12 +25,37 @@
     },
     "dependencies": {
       "python": {
-        "SQLAlchemy" :"==1.0.12",
+        "SQLAlchemy": "==1.0.12",
         "sqlalchemy-gevent": "==0.2"
       }
     }
   },
   "publishConfig": {
     "registry": "http://registry.caleydo.org/"
+  },
+  "files": [
+    "src",
+    "__init__.py",
+    "__main__.py",
+    "build",
+    "requirements.txt",
+    "requirements_dev.txt",
+    "debian_packages.txt",
+    "redhat_packages.txt",
+    "assets"
+  ],
+  "scripts": {
+    "check": "flake8",
+    "pretest": "npm run check",
+    "test": "python setup.py test"
+  },
+  "homepage": "https://phovea.caleydo.org",
+  "author": {
+    "name": "The Caleydo Team",
+    "email": "contact@caleydo.org",
+    "url": "https://caleydo.org"
+  },
+  "bugs": {
+    "url": "https://github.com/phovea/phovea_data_sql/issues"
   }
 }
