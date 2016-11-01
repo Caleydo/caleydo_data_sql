@@ -18,12 +18,6 @@
           "type": "dataset-provider",
           "id": "dataset-sql",
           "file": "sql"
-        },
-        {
-          "type": "sql-adapter",
-          "id": "sqlite",
-          "file": "sqlite",
-          "filter": "(sqlite3|sqlite)"
         }
       ]
     },
