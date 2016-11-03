@@ -4,10 +4,6 @@
     "name": "phovea_data_sql",
     "author": "The Caleydo Team",
     "githubAccount": "phovea",
-    "slibraries": [],
-    "smodules": [
-      "phovea_server"
-    ],
     "sextensions": [
       {
         "type": "dataset-provider",
@@ -16,6 +12,18 @@
         "extras": {}
       }
     ],
-    "today": "Tue, 01 Nov 2016 20:02:16 GMT"
+    "today": "Tue, 01 Nov 2016 20:02:16 GMT",
+    "modules": [
+      "phovea_server"
+    ],
+    "libraries": [],
+    "unknown": {
+      "requirements": [
+        "SQLAlchemy==1.0.12",
+        "sqlalchemy-gevent==0.2"
+      ],
+      "debianPackages": [],
+      "redhatPackages": []
+    }
   }
 }
