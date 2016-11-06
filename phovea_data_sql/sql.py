@@ -1,24 +1,26 @@
-__author__ = 'Samuel Gratzl'
 import numpy as np
-import phovea_server.range as ranges
 import itertools
 import sqlalchemy
-#patch sqlalchemy for better parallelism using gevent
-#import sqlalchemy_gevent
-#sqlalchemy_gevent.patch_all()
-
 from phovea_server.dataset_def import ADataSetEntry, ADataSetProvider
+# patch sqlalchemy for better parallelism using gevent
+# import sqlalchemy_gevent
+# sqlalchemy_gevent.patch_all()
+
+
+__author__ = 'Samuel Gratzl'
+
 
 def assign_ids(ids, idtype):
-  import phovea_server.plugin
+  from phovea_server.plugin import lookup
 
-  manager = phovea_server.plugin.lookup('idmanager')
+  manager = lookup('idmanager')
   return np.array(manager(ids, idtype))
+
 
 class SQLDatabase(object):
   def __init__(self, config):
     self.config = config
-    #access to DB in DBI format
+    # access to DB in DBI format
     self.engine = sqlalchemy.create_engine(config['url'])
     import os
     self.name = config.get('name', os.path.basename(config['url']))
@@ -34,7 +36,7 @@ class SQLDatabase(object):
 
   def create_entry(self, entry):
     if entry['type'] == 'table':
-        return SQLTable(self, entry)
+      return SQLTable(self, entry)
     return None
 
   def execute(self, sql, *args, **kwargs):
@@ -52,11 +54,13 @@ class SQLDatabase(object):
         return f
     return None
 
+
 class SQLEntry(ADataSetEntry):
   def __init__(self, db, desc):
     super(SQLEntry, self).__init__(desc['name'], db.name, desc['type'])
     self._db = db
     self.desc = desc
+
 
 class SQLColumn(object):
   def __init__(self, desc, i, table):
@@ -68,13 +72,15 @@ class SQLColumn(object):
     self._converter = lambda x: x
 
     def create_lookup(cats):
-      rlookup = { str(v) : k for k,v in cats.iteritems() }
+      rlookup = {str(v): k for k, v in cats.iteritems()}
+
       def lookup(x):
         if x is None and 'unknown' in rlookup:
           return rlookup['unknown']
         if x is None and 'unknown' in cats:
           return 'unknown'
         return None if x is None else rlookup[str(x)]
+
       return lookup
 
     if self.type == 'categorical':
@@ -104,7 +110,7 @@ class SQLColumn(object):
   def __call__(self, v):
     return self._converter(v)
 
-  def aslist(self, range = None):
+  def aslist(self, range=None):
     return [self(v) for v in self._table.rows_of(self.column, range)]
 
   def asnumpy(self, range=None):
@@ -117,6 +123,7 @@ class SQLColumn(object):
     if self.type == 'int' or self.type == 'real':
       value['range'] = self.range
     return dict(name=self.name, value=value)
+
 
 class SQLView(object):
   def __init__(self, desc, table):
@@ -136,21 +143,20 @@ class SQLView(object):
     return self._table.columns
 
   def _to_query(self, args):
-    columns = ','.join(self._columnPrefix+d.column+' as "'+d.name+'"' for d in self.columns)
+    columns = ','.join(self._columnPrefix + d.column + ' as "' + d.name + '"' for d in self.columns)
     return self._build_query(columns, args)
 
   def _build_query(self, columns, args):
     q = 'select {0} from {1} where {2} order by {3}'.format(columns, self._from, self._where, self._idColumn)
-    kwargs = { a : args[a] for a in self._arguments}
+    kwargs = {a: args[a] for a in self._arguments}
     return sqlalchemy.sql.text(q), kwargs
 
-
-  def rows(self, args = None):
-    q,kwargs = self._build_query(self._idColumn, args)
+  def rows(self, args=None):
+    q, kwargs = self._build_query(self._idColumn, args)
     n = [r[0] for r in self._db.execute(q, **kwargs)]
     return n
 
-  def rowids(self, args = None):
+  def rowids(self, args=None):
     return assign_ids(self.rows(args), self._table.idtype)
 
   def aslist(self, args=None):
@@ -159,7 +165,7 @@ class SQLView(object):
   def aspandas(self, args=None):
     import pandas as pd
     q, kwargs = self._to_query(args)
-    result = self._db.db.execute(q,**kwargs)
+    result = self._db.db.execute(q, **kwargs)
     columns = result.keys()
     df = pd.DataFrame.from_records(list(result), columns=columns)
     return df
@@ -169,9 +175,10 @@ class SQLView(object):
     rowids = assign_ids(rows, self._table.idtype)
 
     dd = self.aslist(args)
-    r = dict(data=dd, rows=rows, rowIds = rowids)
+    r = dict(data=dd, rows=rows, rowIds=rowids)
 
     return r
+
 
 class SQLTable(SQLEntry):
   def __init__(self, db, desc):
@@ -180,8 +187,8 @@ class SQLTable(SQLEntry):
     self._idColumn = desc['idColumn']
     self._table = desc['table']
     self._rowids = None
-    self.columns = [SQLColumn(a, i, self) for i,a in enumerate(desc['columns'])]
-    self.views = { k: SQLView(v, self) for k,v in desc.get('views',{}).iteritems() }
+    self.columns = [SQLColumn(a, i, self) for i, a in enumerate(desc['columns'])]
+    self.views = {k: SQLView(v, self) for k, v in desc.get('views', {}).iteritems()}
 
   @property
   def idtype(self):
@@ -195,12 +202,12 @@ class SQLTable(SQLEntry):
     r['idtype'] = self.idtype
     r['columns'] = [d.dump() for d in self.columns]
     r['size'] = [self.nrows, len(self.columns)]
-    r['views'] = { k : v.dump() for k,v in self.views.iteritems() }
+    r['views'] = {k: v.dump() for k, v in self.views.iteritems()}
     return r
 
   @property
   def nrows(self):
-    r = next(iter(self._db.execute('select count(*) as c from '+self._table)))
+    r = next(iter(self._db.execute('select count(*) as c from ' + self._table)))
     return r[0]
 
   def range_of(self, column):
@@ -208,16 +215,18 @@ class SQLTable(SQLEntry):
     return [r[0], r[1]]
 
   def categories_of(self, column):
-    return [ r[0] for r in self._db.execute('select distinct({0}) from {1} where {0} is not null'.format(column, self._table)) ]
+    return [r[0] for r in
+            self._db.execute('select distinct({0}) from {1} where {0} is not null'.format(column, self._table))]
 
-  def rows_of(self, column, range = None):
-    n = np.array([ r[0] for r in self._db.execute('select {0} from {1} order by {2}'.format(column, self._table, self._idColumn))])
+  def rows_of(self, column, range=None):
+    n = np.array(
+        [r[0] for r in self._db.execute('select {0} from {1} order by {2}'.format(column, self._table, self._idColumn))])
     if range is None:
       return n
     return n[range.asslice()]
 
   def rows(self, range=None):
-    n = [r[0] for r in self._db.execute('select {0} from {1} order by {0}'.format(self._idColumn,self._table))]
+    n = [r[0] for r in self._db.execute('select {0} from {1} order by {0}'.format(self._idColumn, self._table))]
     if range is None:
       return n
     return n[range.asslice()]
@@ -234,8 +243,8 @@ class SQLTable(SQLEntry):
     return self.aspandas(range).to_dict('records')
 
   def _to_query(self):
-    columns = ','.join(d.column+' as "'+d.name+'"' for d in self.columns)
-    return 'select {0} from {1} order by {2}'.format(columns,self._table, self._idColumn)
+    columns = ','.join(d.column + ' as "' + d.name + '"' for d in self.columns)
+    return 'select {0} from {1} order by {2}'.format(columns, self._table, self._idColumn)
 
   def aspandas(self, range=None):
     import pandas as pd
@@ -252,7 +261,7 @@ class SQLTable(SQLEntry):
     rowids = self.rowids(None if range is None else range[0])
 
     dd = self.aslist(range)
-    r = dict(data=dd, rows=rows, rowIds = rowids)
+    r = dict(data=dd, rows=rows, rowIds=rowids)
 
     return r
 

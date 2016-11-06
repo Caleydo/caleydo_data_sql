@@ -10,7 +10,7 @@ def phovea(registry):
   register extension points
   :param registry:
   """
-  registry.append('dataset-provider','dataset-sql','phovea_data_sql.sql', {})
+  registry.append('dataset-provider', 'dataset-sql', 'phovea_data_sql.sql', {})
   pass
 
 
