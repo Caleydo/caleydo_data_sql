@@ -1,0 +1,29 @@
+{
+  "generator-phovea": {
+    "type": "service",
+    "name": "phovea_data_sql",
+    "author": "The Caleydo Team",
+    "githubAccount": "phovea",
+    "sextensions": [
+      {
+        "type": "dataset-provider",
+        "id": "dataset-sql",
+        "module": "sql",
+        "extras": {}
+      }
+    ],
+    "today": "Tue, 01 Nov 2016 20:02:16 GMT",
+    "modules": [
+      "phovea_server"
+    ],
+    "libraries": [],
+    "unknown": {
+      "requirements": [
+        "SQLAlchemy==1.0.12",
+        "sqlalchemy-gevent==0.2"
+      ],
+      "debianPackages": [],
+      "redhatPackages": []
+    }
+  }
+}
