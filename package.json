@@ -48,7 +48,6 @@
     "check": "flake8",
     "pretest": "npm run check",
     "test": "python setup.py test",
-    "start": "python __main__.py",
     "predist": "npm run test",
     "dist": "python setup.py bdist_egg"
   },
