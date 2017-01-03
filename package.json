@@ -1,38 +1,13 @@
 {
   "name": "phovea_data_sql",
   "description": "Data provider plugin for loading tabular data stored in an SQLite database.",
-  "version": "0.0.1-SNAPSHOT",
+  "version": "0.0.5",
   "license": "BSD-3-Clause",
   "repository": {
     "type": "git",
     "url": "https://github.com/phovea/phovea_data_sql.git"
   },
-  "dependencies": {},
-  "peerDependencies": {
-    "caleydo_server": "*"
-  },
-  "caleydo": {
-    "type": "plugin",
-    "category": "python_data",
-    "plugins": {
-      "python": [
-        {
-          "type": "dataset-provider",
-          "id": "dataset-sql",
-          "file": "sql"
-        }
-      ]
-    },
-    "dependencies": {
-      "python": {
-        "SQLAlchemy": "==1.0.12",
-        "sqlalchemy-gevent": "==0.2"
-      }
-    }
-  },
-  "publishConfig": {
-    "registry": "http://registry.caleydo.org/"
-  },
+
   "files": [
     "phovea_data_sql",
     "__init__.py",
@@ -40,16 +15,18 @@
     "build",
     "requirements.txt",
     "requirements_dev.txt",
-    "debian_packages.txt",
-    "redhat_packages.txt",
+    "docker_packages.txt",
     "assets"
   ],
   "scripts": {
     "check": "flake8",
     "pretest": "npm run check",
-    "test": "python setup.py test",
-    "predist": "npm run test",
-    "dist": "python setup.py bdist_egg"
+    "test": "test ! -d tests || python setup.py test",
+    "predist": "npm run build && npm run docs",
+    "dist": "python setup.py bdist_egg",
+    "docs": "echo todo creating docs...",
+    "prebuild": "node -e \"process.exit(process.env.PHOVEA_SKIP_TESTS === undefined?1:0)\" || npm run test",
+    "build": "python -c \"from distutils.dir_util import mkpath ; mkpath('./build/source')\" && (tar -c ./phovea_data_sql --exclude '*.pyc' | tar -xC build/source)"
   },
   "homepage": "https://phovea.caleydo.org",
   "author": {
