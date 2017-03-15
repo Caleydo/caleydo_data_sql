@@ -132,6 +132,13 @@ class SQLTable(ATable):
     self.columns = [SQLColumn(a, i, self) for i, a in enumerate(desc['columns'])]
     self.shape = [self.nrows, len(self.columns)]
 
+  def to_description(self):
+    r = super(SQLTable, self).to_description()
+    r['idtype'] = self.idtype
+    r['columns'] = [d.dump() for d in self.columns]
+    r['size'] = [self.nrows, len(self.columns)]
+    return r
+
   @property
   def nrows(self):
     r = next(iter(self._db.execute('select count(*) as c from ' + self._table)))
