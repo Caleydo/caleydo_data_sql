@@ -156,8 +156,7 @@ class SQLTable(ATable):
             self._db.execute('select distinct({0}) from {1} where {0} is not null'.format(column, self._table))]
 
   def rows_of(self, column, range=None):
-    n = np.array(
-      [r[0] for r in self._db.execute('select {0} from {1} order by {2}'.format(column, self._table, self._idColumn))])
+    n = np.array([r[0] for r in self._db.execute('select {0} from {1} order by {2}'.format(column, self._table, self._idColumn))])
     if range is None:
       return n
     return n[range.asslice()]
