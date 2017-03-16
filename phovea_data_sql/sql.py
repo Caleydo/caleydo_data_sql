@@ -1,7 +1,8 @@
 import numpy as np
 import itertools
 import sqlalchemy
-from phovea_server.dataset_def import ADataSetEntry, ADataSetProvider, AColumn, ATable
+from phovea_server.dataset_def import ADataSetEntry, ADataSetProvider, AColumn, ATable, AMatrix
+from werkzeug.utils import cached_property
 
 # patch sqlalchemy for better parallelism using gevent
 # import sqlalchemy_gevent
@@ -38,6 +39,8 @@ class SQLDatabase(object):
   def create_entry(self, entry):
     if entry['type'] == 'table':
       return SQLTable(self, entry)
+    elif entry['type'] == 'matrix':
+      return SQLMatrix(self, entry)
     return None
 
   def execute(self, sql, *args, **kwargs):
@@ -139,7 +142,7 @@ class SQLTable(ATable):
     r['size'] = [self.nrows, len(self.columns)]
     return r
 
-  @property
+  @cached_property
   def nrows(self):
     r = next(iter(self._db.execute('select count(*) as c from ' + self._table)))
     return r[0]
@@ -186,6 +189,126 @@ class SQLTable(ATable):
     if range is None:
       return df
     return df.iloc[range.asslice()]
+
+
+class MatrixStatements(object):
+  def __init__(self, desc, existing):
+    table = desc['table']
+    row = desc['rowIdColumn']
+    col = desc['colIdColumn']
+    value = desc['valueColumn']
+    self.data = existing.get('data', 'SELECT {row}, {col}, {value} from {table} ORDER BY {row}, {col}'.format(row=row, col=col, value=value, table=table))
+    self.cols = existing.get('cols', 'SELECT DISTINCT {col} from {table} ORDER BY {col}'.format(col=col, table=table))
+    self.rows = existing.get('cols', 'SELECT DISTINCT {row} from {table} ORDER BY {row}'.format(row=row, table=table))
+    self.shape = existing.get('shape',
+                              'SELECT nrow, ncol FROM (SELECT count(DISTINCT {col}) as ncol FROM {table}) c, (SELECT count(DISTINCT {row}) as nrow FROM {table}) r'.format(
+                                col=col, row=row, table=table))
+    self.range = existing.get('range',
+                              'SELECT min({value}) as min, max({value}) as max FROM {table}'.format(value=value,
+                                                                                                    table=table))
+
+
+class SQLMatrix(AMatrix):
+  def __init__(self, db, desc):
+    super(SQLMatrix, self).__init__(desc['name'], db.name, desc['type'])
+    self._db = db
+    self.desc = desc
+    self.rowtype = desc['rowtype']
+    self.coltype = desc['coltype']
+
+    self._table = desc['table']
+    self._rowids = None
+    self._colids = None
+    self.value = desc['value']['type']
+
+    self._statements = MatrixStatements(desc, desc.get('sql', {}))
+
+    r = next(iter(self._db.execute(self._statements.shape)))
+    self.shape = r[0], r[1]
+
+  @cached_property
+  def range(self):
+    r = next(iter(self._db.execute(self._statements.range)))
+    return r[0], r[1]
+
+  @property
+  def ncol(self):
+    return self.shape[1]
+
+  @property
+  def nrow(self):
+    return self.shape[1]
+
+  def idtypes(self):
+    return [self.rowtype, self.coltype]
+
+  def to_description(self):
+    r = super(SQLMatrix, self).to_description()
+    r['rowtype'] = self.rowtype
+    r['coltype'] = self.coltype
+    r['value'] = v = dict(type=self.value)
+    if self.value == 'real' or self.value == 'int':
+      v['range'] = self.range
+    r['size'] = self.shape
+    return r
+
+  def rows(self, range=None):
+    n = [r[0] for r in self._db.execute(self._statements.rows)]
+    if range is None:
+      return n
+    return n[range.asslice()]
+
+  def rowids(self, range=None):
+    if self._rowids is None:
+      self._rowids = assign_ids(self.rows(), self.rowtype)
+    n = self._rowids
+    if range is None:
+      return n
+    return n[range.asslice()]
+
+  def cols(self, range=None):
+    n = [r[0] for r in self._db.execute(self._statements.cols)]
+    if range is None:
+      return n
+    return n[range.asslice()]
+
+  def colids(self, range=None):
+    if self._colids is None:
+      self._colids = assign_ids(self.cols(), self.coltype)
+    n = self._colids
+    if range is None:
+      return n
+    return n[range.asslice()]
+
+  def _load(self):
+    import pandas as pd
+    df = pd.read_sql(self._statements.data, con=self._db.db)
+    df.index = df[self.desc['rowIdColumn']]
+    pivotted = df.pivot(self.desc['rowIdColumn'], self.desc['colIdColumn'], self.desc['valueColumn'])
+    return pivotted.values
+
+  def asnumpy(self, range=None):
+    n = self._load()
+    if range is None:
+      return n
+
+    rows = range[0].asslice()
+    cols = range[1].asslice()
+    d = None
+    if isinstance(rows, list) and isinstance(cols, list):
+      # fancy indexing in two dimension doesn't work
+      d_help = n[rows, :]
+      d = d_help[:, cols]
+    else:
+      d = n[rows, cols]
+
+    if d.ndim == 1:
+      # two options one row and n columns or the other way around
+      if rows is Ellipsis or (isinstance(rows, list) and len(rows) > 1):
+        d = d.reshape((d.shape[0], 1))
+      else:
+        d = d.reshape((1, d.shape[0]))
+    return d
 
 
 class SQLDatabasesProvider(ADataSetProvider):
