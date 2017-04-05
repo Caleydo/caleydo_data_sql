@@ -1,7 +1,7 @@
 {
   "name": "phovea_data_sql",
   "description": "Data provider plugin for loading tabular data stored in an SQLite database.",
-  "version": "0.1.0",
+  "version": "0.1.1-SNAPSHOT",
   "license": "BSD-3-Clause",
   "homepage": "https://phovea.caleydo.org",
   "author": {
