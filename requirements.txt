@@ -1,3 +1,3 @@
 SQLAlchemy==1.0.12
 sqlalchemy-gevent==0.2
-phovea_server==0.1.0
+-e git+https://github.com/phovea/phovea_server.git@develop#egg=phovea_server
