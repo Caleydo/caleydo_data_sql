@@ -1,7 +1,9 @@
 import numpy as np
 import itertools
 import sqlalchemy
-from phovea_server.dataset_def import ADataSetEntry, ADataSetProvider
+from phovea_server.dataset_def import ADataSetEntry, ADataSetProvider, AColumn, ATable, AMatrix
+from werkzeug.utils import cached_property
+
 # patch sqlalchemy for better parallelism using gevent
 # import sqlalchemy_gevent
 # sqlalchemy_gevent.patch_all()
@@ -37,20 +39,19 @@ class SQLDatabase(object):
   def create_entry(self, entry):
     if entry['type'] == 'table':
       return SQLTable(self, entry)
+    elif entry['type'] == 'matrix':
+      return SQLMatrix(self, entry)
     return None
 
   def execute(self, sql, *args, **kwargs):
     return self.db.execute(sql, *args, **kwargs)
 
-  def __len__(self):
-    return len(self.entries)
-
   def __iter__(self):
-    return iter(self.entries)
+    return iter((f for f in self.entries if f.can_read()))
 
   def __getitem__(self, dataset_id):
     for f in self.entries:
-      if f.id == dataset_id:
+      if f.id == dataset_id and f.can_read():
         return f
     return None
 
@@ -62,13 +63,12 @@ class SQLEntry(ADataSetEntry):
     self.desc = desc
 
 
-class SQLColumn(object):
+class SQLColumn(AColumn):
   def __init__(self, desc, i, table):
+    super(SQLColumn, self).__init__(desc['name'] if 'name' in desc else self.column, desc['type'])
     self._table = table
     self.key = i
     self.column = desc['column']
-    self.name = desc['name'] if 'name' in desc else self.column
-    self.type = desc['type']
     self._converter = lambda x: x
 
     def create_lookup(cats):
@@ -110,11 +110,8 @@ class SQLColumn(object):
   def __call__(self, v):
     return self._converter(v)
 
-  def aslist(self, range=None):
-    return [self(v) for v in self._table.rows_of(self.column, range)]
-
   def asnumpy(self, range=None):
-    return np.array(self.aslist(range))
+    return np.array([self(v) for v in self._table.rows_of(self.column, range)])
 
   def dump(self):
     value = dict(type=self.type)
@@ -125,87 +122,27 @@ class SQLColumn(object):
     return dict(name=self.name, value=value)
 
 
-class SQLView(object):
-  def __init__(self, desc, table):
-    self._table = table
-    self._db = self._table._db
-    self._idColumn = desc['idColumn']
-    self._columnPrefix = desc['columnPrefix']
-    self._from = desc['from']
-    self._where = desc['where']
-    self._arguments = desc['arguments']
-
-  def dump(self):
-    return self._arguments
-
-  @property
-  def columns(self):
-    return self._table.columns
-
-  def _to_query(self, args):
-    columns = ','.join(self._columnPrefix + d.column + ' as "' + d.name + '"' for d in self.columns)
-    return self._build_query(columns, args)
-
-  def _build_query(self, columns, args):
-    q = 'select {0} from {1} where {2} order by {3}'.format(columns, self._from, self._where, self._idColumn)
-    kwargs = {a: args[a] for a in self._arguments}
-    return sqlalchemy.sql.text(q), kwargs
-
-  def rows(self, args=None):
-    q, kwargs = self._build_query(self._idColumn, args)
-    n = [r[0] for r in self._db.execute(q, **kwargs)]
-    return n
-
-  def rowids(self, args=None):
-    return assign_ids(self.rows(args), self._table.idtype)
-
-  def aslist(self, args=None):
-    return self.aspandas(args).to_dict('records')
-
-  def aspandas(self, args=None):
-    import pandas as pd
-    q, kwargs = self._to_query(args)
-    result = self._db.db.execute(q, **kwargs)
-    columns = result.keys()
-    df = pd.DataFrame.from_records(list(result), columns=columns)
-    return df
-
-  def asjson(self, args=None):
-    rows = self.rows(args)
-    rowids = assign_ids(rows, self._table.idtype)
-
-    dd = self.aslist(args)
-    r = dict(data=dd, rows=rows, rowIds=rowids)
-
-    return r
-
-
-class SQLTable(SQLEntry):
+class SQLTable(ATable):
   def __init__(self, db, desc):
-    super(SQLTable, self).__init__(db, desc)
+    super(SQLTable, self).__init__(desc['name'], db.name, desc['type'])
+    self._db = db
+    self.desc = desc
+    self.idtype = self.desc['idType']
 
     self._idColumn = desc['idColumn']
     self._table = desc['table']
     self._rowids = None
     self.columns = [SQLColumn(a, i, self) for i, a in enumerate(desc['columns'])]
-    self.views = {k: SQLView(v, self) for k, v in desc.get('views', {}).iteritems()}
-
-  @property
-  def idtype(self):
-    return self.desc['idType']
-
-  def idtypes(self):
-    return [self.idtype]
+    self.shape = [self.nrows, len(self.columns)]
 
   def to_description(self):
     r = super(SQLTable, self).to_description()
     r['idtype'] = self.idtype
     r['columns'] = [d.dump() for d in self.columns]
     r['size'] = [self.nrows, len(self.columns)]
-    r['views'] = {k: v.dump() for k, v in self.views.iteritems()}
     return r
 
-  @property
+  @cached_property
   def nrows(self):
     r = next(iter(self._db.execute('select count(*) as c from ' + self._table)))
     return r[0]
@@ -219,8 +156,7 @@ class SQLTable(SQLEntry):
             self._db.execute('select distinct({0}) from {1} where {0} is not null'.format(column, self._table))]
 
   def rows_of(self, column, range=None):
-    n = np.array(
-        [r[0] for r in self._db.execute('select {0} from {1} order by {2}'.format(column, self._table, self._idColumn))])
+    n = np.array([r[0] for r in self._db.execute('select {0} from {1} order by {2}'.format(column, self._table, self._idColumn))])
     if range is None:
       return n
     return n[range.asslice()]
@@ -239,9 +175,6 @@ class SQLTable(SQLEntry):
       return n
     return n[range.asslice()]
 
-  def aslist(self, range=None):
-    return self.aspandas(range).to_dict('records')
-
   def _to_query(self):
     columns = ','.join(d.column + ' as "' + d.name + '"' for d in self.columns)
     return 'select {0} from {1} order by {2}'.format(columns, self._table, self._idColumn)
@@ -256,14 +189,125 @@ class SQLTable(SQLEntry):
       return df
     return df.iloc[range.asslice()]
 
-  def asjson(self, range=None):
-    rows = self.rows(None if range is None else range[0])
-    rowids = self.rowids(None if range is None else range[0])
 
-    dd = self.aslist(range)
-    r = dict(data=dd, rows=rows, rowIds=rowids)
+class MatrixStatements(object):
+  def __init__(self, desc, existing):
+    table = desc['table']
+    row = desc['rowIdColumn']
+    col = desc['colIdColumn']
+    value = desc['valueColumn']
+    self.data = existing.get('data', 'SELECT {row}, {col}, {value} from {table} ORDER BY {row}, {col}'.format(row=row, col=col, value=value, table=table))
+    self.cols = existing.get('cols', 'SELECT DISTINCT {col} from {table} ORDER BY {col}'.format(col=col, table=table))
+    self.rows = existing.get('cols', 'SELECT DISTINCT {row} from {table} ORDER BY {row}'.format(row=row, table=table))
+    self.shape = existing.get('shape',
+                              'SELECT nrow, ncol FROM (SELECT count(DISTINCT {col}) as ncol FROM {table}) c, (SELECT count(DISTINCT {row}) as nrow FROM {table}) r'.format(
+                                col=col, row=row, table=table))
+    self.range = existing.get('range',
+                              'SELECT min({value}) as min, max({value}) as max FROM {table}'.format(value=value,
+                                                                                                    table=table))
 
+
+class SQLMatrix(AMatrix):
+  def __init__(self, db, desc):
+    super(SQLMatrix, self).__init__(desc['name'], db.name, desc['type'])
+    self._db = db
+    self.desc = desc
+    self.rowtype = desc['rowtype']
+    self.coltype = desc['coltype']
+
+    self._table = desc['table']
+    self._rowids = None
+    self._colids = None
+    self.value = desc['value']['type']
+
+    self._statements = MatrixStatements(desc, desc.get('sql', {}))
+
+    r = next(iter(self._db.execute(self._statements.shape)))
+    self.shape = r[0], r[1]
+
+  @cached_property
+  def range(self):
+    r = next(iter(self._db.execute(self._statements.range)))
+    return r[0], r[1]
+
+  @property
+  def ncol(self):
+    return self.shape[1]
+
+  @property
+  def nrow(self):
+    return self.shape[1]
+
+  def idtypes(self):
+    return [self.rowtype, self.coltype]
+
+  def to_description(self):
+    r = super(SQLMatrix, self).to_description()
+    r['rowtype'] = self.rowtype
+    r['coltype'] = self.coltype
+    r['value'] = v = dict(type=self.value)
+    if self.value == 'real' or self.value == 'int':
+      v['range'] = self.range
+    r['size'] = self.shape
     return r
+
+  def rows(self, range=None):
+    n = [r[0] for r in self._db.execute(self._statements.rows)]
+    if range is None:
+      return n
+    return n[range.asslice()]
+
+  def rowids(self, range=None):
+    if self._rowids is None:
+      self._rowids = assign_ids(self.rows(), self.rowtype)
+    n = self._rowids
+    if range is None:
+      return n
+    return n[range.asslice()]
+
+  def cols(self, range=None):
+    n = [r[0] for r in self._db.execute(self._statements.cols)]
+    if range is None:
+      return n
+    return n[range.asslice()]
+
+  def colids(self, range=None):
+    if self._colids is None:
+      self._colids = assign_ids(self.cols(), self.coltype)
+    n = self._colids
+    if range is None:
+      return n
+    return n[range.asslice()]
+
+  def _load(self):
+    import pandas as pd
+    df = pd.read_sql(self._statements.data, con=self._db.db)
+    df.index = df[self.desc['rowIdColumn']]
+    pivotted = df.pivot(self.desc['rowIdColumn'], self.desc['colIdColumn'], self.desc['valueColumn'])
+    return pivotted.values
+
+  def asnumpy(self, range=None):
+    n = self._load()
+    if range is None:
+      return n
+
+    rows = range[0].asslice()
+    cols = range[1].asslice()
+    d = None
+    if isinstance(rows, list) and isinstance(cols, list):
+      # fancy indexing in two dimension doesn't work
+      d_help = n[rows, :]
+      d = d_help[:, cols]
+    else:
+      d = n[rows, cols]
+
+    if d.ndim == 1:
+      # two options one row and n columns or the other way around
+      if rows is Ellipsis or (isinstance(rows, list) and len(rows) > 1):
+        d = d.reshape((d.shape[0], 1))
+      else:
+        d = d.reshape((1, d.shape[0]))
+    return d
 
 
 class SQLDatabasesProvider(ADataSetProvider):
@@ -276,9 +320,6 @@ class SQLDatabasesProvider(ADataSetProvider):
       definitions.extend(phovea_server.config.view(definition.configKey).databases)
 
     self.databases = [SQLDatabase(db) for db in definitions]
-
-  def __len__(self):
-    return sum((len(f) for f in self.databases))
 
   def __iter__(self):
     return itertools.chain(*self.databases)
