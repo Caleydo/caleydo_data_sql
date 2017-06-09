@@ -200,8 +200,7 @@ class MatrixStatements(object):
     self.cols = existing.get('cols', 'SELECT DISTINCT {col} from {table} ORDER BY {col}'.format(col=col, table=table))
     self.rows = existing.get('cols', 'SELECT DISTINCT {row} from {table} ORDER BY {row}'.format(row=row, table=table))
     self.shape = existing.get('shape',
-                              'SELECT nrow, ncol FROM (SELECT count(DISTINCT {col}) as ncol FROM {table}) c, (SELECT count(DISTINCT {row}) as nrow FROM {table}) r'.format(
-                                col=col, row=row, table=table))
+                              'SELECT nrow, ncol FROM (SELECT count(DISTINCT {col}) as ncol FROM {table}) c, (SELECT count(DISTINCT {row}) as nrow FROM {table}) r'.format(col=col, row=row, table=table))
     self.range = existing.get('range',
                               'SELECT min({value}) as min, max({value}) as max FROM {table}'.format(value=value,
                                                                                                     table=table))
